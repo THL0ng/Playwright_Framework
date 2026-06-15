@@ -1,0 +1,2 @@
+// user.type.ts
+export {};

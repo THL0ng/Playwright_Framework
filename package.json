@@ -1,25 +1,11 @@
 {
-  "name": "playwright-enterprise-framework",
+  "name": "playwright-framework",
   "version": "1.0.0",
-  "description": "Enterprise Playwright TypeScript automation framework with POM, lazy fixtures, and global auth",
-  "main": "index.js",
   "scripts": {
-    "test": "playwright test",
-    "test:e2e": "playwright test tests/e2e",
-    "test:regression": "playwright test tests/regression",
-    "test:setup": "playwright test tests/setup",
-    "test:report": "playwright show-report",
-    "test:ui": "playwright test --ui",
-    "lint": "tsc --noEmit"
+    "test": "playwright test"
   },
-  "keywords": ["playwright", "typescript", "e2e", "automation", "pom"],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
-    "@types/node": "^25.9.1",
-    "dotenv": "^16.4.7",
-    "typescript": "^5.7.3"
+    "@playwright/test": "^1.49.0",
+    "allure-playwright": "^3.0.0"
   }
 }

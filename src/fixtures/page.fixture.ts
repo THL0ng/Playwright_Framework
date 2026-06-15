@@ -1,0 +1,2 @@
+// page.fixture.ts
+export {};
