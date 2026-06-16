@@ -1,5 +1,10 @@
 {
-    "compilerOptions": {
-      "types": ["node"]
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@utils/*": ["src/utils/*"], 
+      "@fixtures/*": ["src/fixtures/*"],
+      "@pages/*": ["src/pages/*"]
     }
   }
+}
