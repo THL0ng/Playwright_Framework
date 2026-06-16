@@ -4,7 +4,8 @@
     "paths": {
       "@utils/*": ["src/utils/*"], 
       "@fixtures/*": ["src/fixtures/*"],
-      "@pages/*": ["src/pages/*"]
+      "@pages/*": ["src/base-test.ts/*"],
+      "@constants/*": ["src/constants/*"]
     }
   }
 }
