@@ -246,6 +246,32 @@ export class BasePage {
         });
     }
 
+    protected async uploadFile(
+        locator: Locator,
+        filePaths: string | string[],
+        fieldName: string,
+        options: { timeout?: number } = {}
+    ): Promise<void> {
+        const timeout = options.timeout ?? CONFIG.TIMEOUTS.UI_ACTION;
+    
+        await this.performAction(`Upload File: ${fieldName}`, async () => {
+            await expect(locator).toBeAttached();
+            
+            // Thực hiện upload
+            await locator.setInputFiles(filePaths, { timeout });
+    
+            // Verification thủ công (bền vững nhất)
+            const files = Array.isArray(filePaths) ? filePaths : [filePaths];
+            const expectedNames = files.map(f => f.split(/[\\/]/).pop());
+            
+            const actualNames = await locator.evaluate((el: HTMLInputElement) => 
+                Array.from(el.files || []).map(f => f.name)
+            );
+    
+            expect(actualNames.sort()).toEqual(expectedNames.sort());
+        });
+    }
+
 
     //----------------------------------------------------------------------------------------------------------------------
     // NAVIGATION
