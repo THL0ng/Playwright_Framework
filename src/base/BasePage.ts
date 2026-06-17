@@ -282,10 +282,10 @@ export class BasePage {
         });
     }
 
-    protected async waitForApiResponse(urlPattern: string | RegExp, 
-        action: () => Promise<void>, 
-        statusCode: number = 200, 
-        responseValidator?: (response: Response) => Promise<void> 
+    protected async waitForApiResponse(urlPattern: string | RegExp,
+        action: () => Promise<void>,
+        statusCode: number = 200,
+        responseValidator?: (response: Response) => Promise<void>
     ): Promise<Response> {
         return this.performAction<Response>(
             `Wait For API: ${urlPattern.toString()}`,
@@ -300,19 +300,19 @@ export class BasePage {
                     ),
                     action(),
                 ]);
-    
+
                 // Kiểm tra status code
                 if (response.status() !== statusCode) {
                     throw new Error(
                         `API Status Mismatch: Expected ${statusCode}, but got ${response.status()} for ${response.url()}`
                     );
                 }
-    
+
                 // Thực thi kiểm tra dữ liệu nếu có validator
                 if (responseValidator) {
                     await responseValidator(response);
                 }
-    
+
                 return response;
             }
         );
@@ -335,4 +335,39 @@ export class BasePage {
     // ASSERT
     //----------------------------------------------------------------------------------------------------------------------
 
+    protected async expectVisible(locator: Locator, fieldName: string): Promise<void> {
+        await expect(locator, `[FAIL] ${fieldName} không hiển thị`).toBeVisible();
+    }
+
+    protected async expectValue(locator: Locator, expectedValue: string, fieldName: string): Promise<void> {
+        await expect(locator, `[FAIL] ${fieldName} có giá trị sai`).toHaveValue(expectedValue);
+    }
+
+    protected async expectText(locator: Locator, expectedText: string, fieldName: string): Promise<void> {
+        await expect(locator, `[FAIL] ${fieldName} có nội dung sai`).toContainText(expectedText);
+    }
+
+    protected async expectChecked(locator: Locator, fieldName: string, isChecked: boolean = true): Promise<void> {
+        if (isChecked) {
+            await expect(locator, `[FAIL] ${fieldName} chưa được chọn`).toBeChecked();
+        } else {
+            await expect(locator, `[FAIL] ${fieldName} vẫn đang được chọn`).not.toBeChecked();
+        }
+    }
+
+    protected async expectDisabled(locator: Locator, fieldName: string, isDisabled: boolean = true): Promise<void> {
+        if (isDisabled) {
+            await expect(locator, `[FAIL] ${fieldName} đáng lẽ phải bị disabled`).toBeDisabled();
+        } else {
+            await expect(locator, `[FAIL] ${fieldName} đáng lẽ phải được enabled`).toBeEnabled();
+        }
+    }
+
+    protected async expectCount(locator: Locator, expectedCount: number, fieldName: string): Promise<void> {
+        await expect(locator, `[FAIL] ${fieldName} không có đúng ${expectedCount} phần tử`).toHaveCount(expectedCount);
+    }
+
+    protected async expectUrl(expectedUrl: string | RegExp): Promise<void> {
+        await expect(this.page, `[FAIL] URL hiện tại không khớp`).toHaveURL(expectedUrl);
+    }
 }
