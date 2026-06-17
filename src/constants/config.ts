@@ -5,6 +5,7 @@ export const CONFIG = {
   TIMEOUTS: {         
     UI_ACTION: 5000 ,
     NAVIGATION: 10000,
+    API:15000
     
   }
 };

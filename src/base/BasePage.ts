@@ -1,15 +1,7 @@
-import { Page, Locator, expect, test } from '@playwright/test';
+import { Page, Locator, Response, expect, test } from '@playwright/test';
 import { CONFIG } from '@constants/config';
 
-/**
- * BasePage — Template framework cho tất cả Page Objects.
- *
- * Nguyên tắc thiết kế:
- * - Mọi action đều wrap trong test.step() → hiển thị đầy đủ trong Playwright HTML report
- * - Mọi catch block đều attach screenshot → dễ debug khi fail
- * - Timeout thống nhất qua CONFIG.TIMEOUTS.UI_ACTION
- * - Tất cả method là protected → chỉ dùng được trong subclass
- */
+
 export class BasePage {
     readonly page: Page;
 
@@ -17,303 +9,330 @@ export class BasePage {
         this.page = page;
     }
 
-    // ─────────────────────────────────────────────
-    // PRIVATE HELPERS
-    // ─────────────────────────────────────────────
+    //----------------------------------------------------------------------------------------------------------------------
+    // PERFORM ACTION
+    //----------------------------------------------------------------------------------------------------------------------
+    protected async performAction<T = void>(
+        stepDescription: string,
+        action: () => Promise<T>
+    ): Promise<T> {
+        return test.step(stepDescription, async () => {
+            try {
+                const result = await action();
+                console.log(`[PASS] | step="${stepDescription}"`);
+                return result;
+            } catch (error) {
+                await this.onActionError(stepDescription, error);
+                throw error; // always reached — onActionError never throws
+            }
+        });
+    }
 
-    /**
-     * Chụp screenshot và đính kèm vào Playwright report khi có lỗi.
-     * Dùng chung cho tất cả catch block.
-     */
-    private async attachErrorScreenshot(stepName: string): Promise<void> {
+    protected async onActionError(
+        stepDescription: string,
+        error: unknown
+    ): Promise<void> {
         try {
-            const screenshot = await this.page.screenshot({ fullPage: true });
-            await test.info().attach(`[ERROR] ${stepName}`, {
-                body: screenshot,
-                contentType: 'image/png',
-            });
-        } catch {
-            // Không throw nếu chụp screenshot thất bại — giữ nguyên lỗi gốc
-            console.warn(`[WARN] Không thể chụp screenshot cho step: ${stepName}`);
+            console.error(
+                `[FAIL] | step="${stepDescription}" | reason="${error instanceof Error ? error.message : String(error)}"`
+            );
+
+            // Only capture screenshot if page is still active
+            // to avoid compounding errors on top of the original failure
+            if (!this.page.isClosed()) {
+                const screenshot = await this.page.screenshot({ fullPage: true, timeout: 5000 });
+                await test.info().attach(stepDescription, {
+                    body: screenshot,
+                    contentType: 'image/png',
+                });
+            }
+        } catch (screenshotError) {
+            // Do not throw — preserve the original test error
+            console.warn(
+                `[WARN] | step="${stepDescription}" | reason="${screenshotError instanceof Error ? screenshotError.message : String(screenshotError)}"`
+            );
         }
     }
 
-    // ─────────────────────────────────────────────
-    // NAVIGATION
-    // ─────────────────────────────────────────────
 
-    /**
-     * Điều hướng tới URL và chờ page load xong.
-     */
-    protected async navigate(url: string): Promise<void> {
-        await test.step(`Điều hướng tới: ${url}`, async () => {
-            try {
-                await this.page.goto(url, {
-                    waitUntil: 'domcontentloaded',
-                    timeout: CONFIG.TIMEOUTS.NAVIGATION,
-                });
-                console.log(`[SUCCESS] Đã điều hướng tới: ${url}`);
-            } catch (error) {
-                await this.attachErrorScreenshot(`navigate: ${url}`);
-                throw error;
-            }
+
+    //----------------------------------------------------------------------------------------------------------------------
+    // ACTIONS
+    //----------------------------------------------------------------------------------------------------------------------
+
+
+    protected async click(locator: Locator, stepName: string, options: { timeout?: number } = {}): Promise<void> {
+        const timeout = options.timeout ?? CONFIG.TIMEOUTS.UI_ACTION;
+
+        await this.performAction(`Click: ${stepName}`, async () => {
+            await expect(locator).toBeVisible({ timeout });
+            await expect(locator).toBeEnabled({ timeout });
+            await locator.click();
+        });
+    }
+
+    protected async forceClick(locator: Locator, stepName: string): Promise<void> {
+        await this.performAction(`Force Click: ${stepName}`, async () => {
+            await expect(locator).toBeAttached();
+            await locator.click({ force: true });
+        });
+    }
+
+    protected async hover(locator: Locator, stepName: string, options: { timeout?: number } = {}): Promise<void> {
+        const timeout = options.timeout ?? CONFIG.TIMEOUTS.UI_ACTION;
+
+        await this.performAction(`Hover: ${stepName}`, async () => {
+            await expect(locator).toBeVisible({ timeout });
+
+            await locator.scrollIntoViewIfNeeded();
+
+            await locator.hover();
         });
     }
 
     /**
-     * Chờ page load hoàn toàn (dùng sau các action trigger navigation).
-     */
-    protected async waitForPageLoad(): Promise<void> {
-        await test.step('Chờ page load hoàn tất', async () => {
-            try {
-                await this.page.waitForLoadState('domcontentloaded', {
-                    timeout: CONFIG.TIMEOUTS.NAVIGATION,
-                });
-            } catch (error) {
-                await this.attachErrorScreenshot('waitForPageLoad');
-                throw error;
-            }
-        });
-    }
-
-    // ─────────────────────────────────────────────
-    // CORE ACTIONS
-    // ─────────────────────────────────────────────
-
-    /**
-     * Click vào element. Chờ visible trước khi click.
-     */
-    protected async click(locator: Locator, stepName: string): Promise<void> {
-        await test.step(`Click vào: ${stepName}`, async () => {
-            try {
-                await expect(locator).toBeVisible({ timeout: CONFIG.TIMEOUTS.UI_ACTION });
-                await locator.click();
-                console.log(`[SUCCESS] Click: ${stepName}`);
-            } catch (error) {
-                await this.attachErrorScreenshot(`click: ${stepName}`);
-                throw error;
-            }
-        });
-    }
-
-    /**
-     * Hover vào element (dùng cho tooltip, menu dropdown trigger).
-     */
-    protected async hover(locator: Locator, stepName: string): Promise<void> {
-        await test.step(`Hover vào: ${stepName}`, async () => {
-            try {
-                await expect(locator).toBeVisible({ timeout: CONFIG.TIMEOUTS.UI_ACTION });
-                await locator.hover();
-                console.log(`[SUCCESS] Hover: ${stepName}`);
-            } catch (error) {
-                await this.attachErrorScreenshot(`hover: ${stepName}`);
-                throw error;
-            }
-        });
-    }
-
-    /**
-     * Điền giá trị vào input field. Clear trước khi fill để tránh append.
-     */
+ * 1. Fill trực tiếp: Tốc độ cao, dùng cho input chuẩn.
+ */
     protected async fillField(locator: Locator, value: string, fieldName: string): Promise<void> {
-        await test.step(`Điền "${value}" vào: ${fieldName}`, async () => {
-            try {
-                await locator.waitFor({ state: 'visible', timeout: CONFIG.TIMEOUTS.UI_ACTION });
-                await locator.clear();
-                await locator.fill(value);
-                await expect(locator).toHaveValue(value, { timeout: CONFIG.TIMEOUTS.UI_ACTION });
-                console.log(`[SUCCESS] fillField: ${fieldName} = "${value}"`);
-            } catch (error) {
-                await this.attachErrorScreenshot(`fillField: ${fieldName}`);
-                throw error;
-            }
+        await this.performAction(`Fill: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
+            await locator.clear();
+            await locator.fill(value);
+            await expect(locator).toHaveValue(value);
         });
     }
 
-    // ─────────────────────────────────────────────
-    // CHECKBOX / TOGGLE
-    // ─────────────────────────────────────────────
+    /**
+     * 2. Type từng ký tự: Dùng khi cần trigger sự kiện bàn phím (autocomplete/search).
+     */
+    protected async typeField(locator: Locator, value: string, fieldName: string, delay: number = 20): Promise<void> {
+        await this.performAction(`Type: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
+            await locator.clear();
+            await locator.pressSequentially(value, { delay });
+        });
+    }
 
     /**
-     * Set trạng thái checkbox. Idempotent — không click nếu đã đúng trạng thái.
+     * 3. Rich Text: Dùng cho các thẻ contenteditable (editor).
      */
+    protected async fillRichText(locator: Locator, value: string, fieldName: string, delay: number = 20): Promise<void> {
+        await this.performAction(`RichText: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
+            await locator.click();
+            await locator.selectText(); // Chọn hết thay vì clear
+            await locator.pressSequentially(value, { delay });
+            await expect(locator).toContainText(value);
+        });
+    }
+
     protected async setCheckbox(
         locator: Locator,
         isChecked: boolean,
         fieldName: string
     ): Promise<void> {
-        await test.step(`${isChecked ? 'Check' : 'Uncheck'}: ${fieldName}`, async () => {
-            try {
-                await locator.waitFor({ state: 'visible', timeout: CONFIG.TIMEOUTS.UI_ACTION });
+        const actionLabel = isChecked ? 'Check' : 'Uncheck';
 
-                const currentState = await locator.isChecked();
+        await this.performAction(`Checkbox: ${fieldName} (${actionLabel})`, async () => {
+            await expect(locator).toBeVisible();
 
-                if (currentState !== isChecked) {
-                    await (isChecked ? locator.check() : locator.uncheck());
-                    console.log(`[SUCCESS] setCheckbox: ${fieldName} → ${isChecked ? 'Checked' : 'Unchecked'}`);
-                } else {
-                    console.log(`[SKIP] setCheckbox: ${fieldName} đã ở trạng thái ${isChecked ? 'Checked' : 'Unchecked'}`);
-                }
-
-                await expect(locator).toBeChecked({
-                    checked: isChecked,
-                    timeout: CONFIG.TIMEOUTS.UI_ACTION,
-                });
-            } catch (error) {
-                await this.attachErrorScreenshot(`setCheckbox: ${fieldName}`);
-                throw error;
+            const currentState = await locator.isChecked();
+            if (currentState !== isChecked) {
+                await (isChecked ? locator.check() : locator.uncheck());
             }
+            await expect(locator).toBeChecked({ checked: isChecked });
         });
     }
 
-    // ─────────────────────────────────────────────
-    // DROPDOWN — NATIVE <select>
-    // ─────────────────────────────────────────────
+    protected async selectDefaultDropdownByValue(
+        locator: Locator,
+        value: string,
+        fieldName: string
+    ): Promise<void> {
+        await this.performAction(`Dropdown Value: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
+            await locator.selectOption({ value });
+            await expect(locator).toHaveValue(value);
+        });
+    }
 
-    /**
-     * Chọn ngẫu nhiên một option trong native <select>.
-     * @param hasPlaceholder - true nếu option đầu tiên là placeholder (bỏ qua khi random)
-     */
+    protected async selectDefaultDropdownByLabel(
+        locator: Locator,
+        label: string,
+        fieldName: string
+    ): Promise<void> {
+        await this.performAction(`Dropdown Label: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
+            await locator.selectOption({ label });
+            await expect(locator.locator('option:checked')).toHaveText(label);
+        });
+    }
+
     protected async selectRandomDropdown(
         locator: Locator,
         fieldName: string,
         hasPlaceholder: boolean = true
-    ): Promise<void> {
-        await test.step(`Chọn ngẫu nhiên dropdown: ${fieldName}`, async () => {
-            try {
-                await locator.waitFor({ state: 'visible', timeout: CONFIG.TIMEOUTS.UI_ACTION });
+    ): Promise<string> {
+        return this.performAction<string>(`Dropdown Random: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
 
-                const options = locator.locator('option');
-                const count = await options.count();
-                const startIndex = hasPlaceholder ? 1 : 0;
+            const options = locator.locator('option');
+            const count = await options.count();
+            const startIndex = hasPlaceholder ? 1 : 0;
 
-                if (count <= startIndex) {
-                    throw new Error(`Dropdown "${fieldName}" không có đủ tùy chọn để chọn ngẫu nhiên (count=${count}).`);
-                }
-
-                const randomIndex = Math.floor(Math.random() * (count - startIndex)) + startIndex;
-                const selectedOption = options.nth(randomIndex);
-
-                // FIX: Dùng ?? thay vì || để handle empty string đúng cách
-                const rawValue =
-                    (await selectedOption.getAttribute('value')) ??
-                    (await selectedOption.innerText()).trim();
-
-                const value = rawValue.trim();
-
-                if (!value) {
-                    throw new Error(`Không lấy được giá trị option tại index ${randomIndex} của "${fieldName}".`);
-                }
-
-                console.log(`[ACTION] selectRandomDropdown: ${fieldName} → "${value}"`);
-                await locator.selectOption(value);
-                await expect(locator).toHaveValue(value, { timeout: CONFIG.TIMEOUTS.UI_ACTION });
-
-                console.log(`[SUCCESS] selectRandomDropdown: ${fieldName} = "${value}"`);
-            } catch (error) {
-                await this.attachErrorScreenshot(`selectRandomDropdown: ${fieldName}`);
-                throw error;
+            if (count <= startIndex) {
+                throw new Error(`Field "${fieldName}" không đủ option (count=${count})`);
             }
+
+            const randomIndex = Math.floor(Math.random() * (count - startIndex)) + startIndex;
+            const selectedOption = options.nth(randomIndex);
+
+            const value = (await selectedOption.getAttribute('value') ?? await selectedOption.innerText()).trim();
+
+            if (!value) throw new Error(`Option tại index ${randomIndex} không có giá trị`);
+
+            await locator.selectOption(value);
+            await expect(locator).toHaveValue(value);
+            return value;
         });
     }
 
-    // ─────────────────────────────────────────────
-    // DROPDOWN — CUSTOM (non-native)
-    // ─────────────────────────────────────────────
-
-    /**
-     * Chọn ngẫu nhiên một option trong custom dropdown (không phải native <select>).
-     * @param triggerLocator  - Element cần click để mở dropdown
-     * @param listLocator     - Container chứa danh sách option
-     * @param optionLocator   - Locator của từng option item
-     * @param fieldName       - Tên field (dùng trong log và step name)
-     */
     protected async selectRandomCustomDropdown(
         triggerLocator: Locator,
         listLocator: Locator,
         optionLocator: Locator,
-        fieldName: string
-    ): Promise<void> {
-        await test.step(`Chọn ngẫu nhiên custom dropdown: ${fieldName}`, async () => {
-            try {
-                await triggerLocator.click();
-                await listLocator.waitFor({ state: 'visible', timeout: CONFIG.TIMEOUTS.UI_ACTION });
+        fieldName: string,
+        disabledSelector: string = ''
+    ): Promise<string> {
+        return this.performAction<string>(`Custom Dropdown Random: ${fieldName}`, async () => {
+            await triggerLocator.click();
+            await listLocator.waitFor({ state: 'visible' });
 
-                // FIX: Filter đủ các dạng disabled của custom dropdown
-                const activeOptions = optionLocator.filter({
-                    hasNot: this.page.locator('[disabled], [aria-disabled="true"], .is-disabled, .disabled'),
-                });
+            const baseDisabled = '[disabled], [aria-disabled="true"], .is-disabled, .disabled';
+            const fullDisabledSelector = disabledSelector ? `${baseDisabled}, ${disabledSelector}` : baseDisabled;
 
-                const count = await activeOptions.count();
+            // Lọc các option khả dụng
+            const activeOptions = optionLocator.filter({
+                hasNot: this.page.locator(fullDisabledSelector),
+            });
 
-                if (count === 0) {
-                    throw new Error(`Không tìm thấy option khả dụng nào cho "${fieldName}".`);
-                }
+            const count = await activeOptions.count();
+            if (count === 0) throw new Error(`Field "${fieldName}" không có option khả dụng`);
 
-                const randomIndex = Math.floor(Math.random() * count);
-                const randomOption = activeOptions.nth(randomIndex);
-                const text = (await randomOption.innerText()).trim();
+            const randomIndex = Math.floor(Math.random() * count);
+            const randomOption = activeOptions.nth(randomIndex);
+            const text = (await randomOption.innerText()).trim();
 
-                console.log(`[ACTION] selectRandomCustomDropdown: ${fieldName} → "${text}"`);
-                await randomOption.click();
+            await randomOption.click();
+            await expect(listLocator).toBeHidden();
 
-                await expect(listLocator).toBeHidden({ timeout: CONFIG.TIMEOUTS.UI_ACTION });
-                console.log(`[SUCCESS] selectRandomCustomDropdown: ${fieldName} = "${text}"`);
-            } catch (error) {
-                await this.attachErrorScreenshot(`selectRandomCustomDropdown: ${fieldName}`);
-                throw error;
-            }
+            return text;
         });
     }
 
-    // ─────────────────────────────────────────────
-    // GETTERS / ASSERTIONS HELPERS
-    // ─────────────────────────────────────────────
-
-    /**
-     * Lấy text content của element.
-     */
     protected async getText(locator: Locator, fieldName: string): Promise<string> {
-        return test.step(`Lấy text của: ${fieldName}`, async () => {
-            try {
-                await expect(locator).toBeVisible({ timeout: CONFIG.TIMEOUTS.UI_ACTION });
-                const text = (await locator.innerText()).trim();
-                console.log(`[SUCCESS] getText: ${fieldName} = "${text}"`);
-                return text;
-            } catch (error) {
-                await this.attachErrorScreenshot(`getText: ${fieldName}`);
-                throw error;
-            }
+        return this.performAction<string>(`Get Text: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
+            const text = (await locator.innerText()).trim();
+            return text;
         });
     }
 
-    /**
-     * Kiểm tra element có visible hay không (soft check, không throw).
-     * Dùng cho conditional logic, không dùng để assert.
-     */
-    protected async isVisible(locator: Locator): Promise<boolean> {
-        return locator.isVisible();
+
+    protected async getAttribute(locator: Locator, attributeName: string, fieldName: string): Promise<string | null> {
+        return this.performAction<string | null>(`Get Attribute [${attributeName}]: ${fieldName}`, async () => {
+            await expect(locator).toBeVisible();
+            return await locator.getAttribute(attributeName);
+        });
     }
 
-    /**
-     * Chờ một selector xuất hiện trên trang.
-     * @param selector - CSS selector hoặc text selector
-     * @param state    - 'visible' | 'hidden' | 'attached' | 'detached'
-     */
+
+    //----------------------------------------------------------------------------------------------------------------------
+    // NAVIGATION
+    //----------------------------------------------------------------------------------------------------------------------
+    protected async scrollToElement(locator: Locator, fieldName: string): Promise<void> {
+        await this.performAction(`Scroll To: ${fieldName}`, async () => {
+            // Đảm bảo phần tử tồn tại trước khi cuộn
+            await expect(locator).toBeVisible();
+
+            // Cuộn phần tử vào Viewport
+            await locator.scrollIntoViewIfNeeded();
+        });
+    }
+
+
+
+    //----------------------------------------------------------------------------------------------------------------------
+    // WAIT FOR
+    //----------------------------------------------------------------------------------------------------------------------
+    protected async waitForPageReady(
+        targetLocator: Locator,
+        state: 'domcontentloaded' | 'load' | 'networkidle' = 'load'
+    ): Promise<void> {
+        await this.performAction(`Wait For Page Ready: state="${state}"`, async () => {
+            // 1. Đợi trang load trạng thái
+            await this.page.waitForLoadState(state, {
+                timeout: CONFIG.TIMEOUTS.NAVIGATION,
+            });
+
+            // 2. Đợi phần tử quan trọng (selector) hiện diện
+            await expect(targetLocator).toBeVisible({
+                timeout: CONFIG.TIMEOUTS.UI_ACTION
+            });
+        });
+    }
+
+    protected async waitForApiResponse(urlPattern: string | RegExp, 
+        action: () => Promise<void>, 
+        statusCode: number = 200, 
+        responseValidator?: (response: Response) => Promise<void> 
+    ): Promise<Response> {
+        return this.performAction<Response>(
+            `Wait For API: ${urlPattern.toString()}`,
+            async () => {
+                const [response] = await Promise.all([
+                    this.page.waitForResponse(
+                        (res) =>
+                            urlPattern instanceof RegExp
+                                ? urlPattern.test(res.url())
+                                : res.url().includes(urlPattern),
+                        { timeout: CONFIG.TIMEOUTS.API }
+                    ),
+                    action(),
+                ]);
+    
+                // Kiểm tra status code
+                if (response.status() !== statusCode) {
+                    throw new Error(
+                        `API Status Mismatch: Expected ${statusCode}, but got ${response.status()} for ${response.url()}`
+                    );
+                }
+    
+                // Thực thi kiểm tra dữ liệu nếu có validator
+                if (responseValidator) {
+                    await responseValidator(response);
+                }
+    
+                return response;
+            }
+        );
+    }
+
     protected async waitForSelector(
-        selector: string,
+        locator: Locator,
         state: 'visible' | 'hidden' | 'attached' | 'detached' = 'visible'
     ): Promise<void> {
-        await test.step(`Chờ selector "${selector}" ở trạng thái: ${state}`, async () => {
-            try {
-                await this.page.waitForSelector(selector, {
-                    state,
-                    timeout: CONFIG.TIMEOUTS.UI_ACTION,
-                });
-            } catch (error) {
-                await this.attachErrorScreenshot(`waitForSelector: ${selector}`);
-                throw error;
-            }
+        await this.performAction(`Wait For Selector: state="${state}"`, async () => {
+            await locator.waitFor({
+                state: state,
+                timeout: CONFIG.TIMEOUTS.UI_ACTION,
+            });
         });
     }
+
+
+    //----------------------------------------------------------------------------------------------------------------------
+    // ASSERT
+    //----------------------------------------------------------------------------------------------------------------------
+
 }
