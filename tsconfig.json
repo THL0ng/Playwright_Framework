@@ -5,7 +5,8 @@
       "@utils/*": ["src/utils/*"], 
       "@fixtures/*": ["src/fixtures/*"],
       "@pages/*": ["src/base-test.ts/*"],
-      "@constants/*": ["src/constants/*"]
+      "@constants/*": ["src/constants/*"],
+      "@types/*": ["src/models/*"]
     }
   }
 }

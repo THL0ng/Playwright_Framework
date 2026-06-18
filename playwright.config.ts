@@ -7,8 +7,8 @@ dotenv.config({ path: path.resolve(__dirname, envFile) });
 
 export default defineConfig({
   // Dùng đường dẫn chuẩn hóa
-  globalSetup: path.resolve(__dirname, 'src/utils/global-setup-teardown.ts'),
-  globalTeardown: path.resolve(__dirname, 'src/utils/global-setup-teardown.ts'),
+  globalSetup: path.resolve(__dirname, 'src/utils/global/global-setup.ts'),
+  globalTeardown: path.resolve(__dirname, 'src/utils/global/global-teardown.ts'),
 
   testDir: './tests',
   workers: 1, 
