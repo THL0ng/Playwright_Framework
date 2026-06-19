@@ -17,7 +17,7 @@ test.describe('Data Loader Verification', () => {
     
     expect(data.length).toBe(2);
     expect(data[1].username).toBe('user4');
-    expect(data[1].email).toBe(''); // Kiểm tra trường bỏ trống
+    expect(data[1].email).toBe(''); 
     console.log('CSV Data:', data);
   });
 

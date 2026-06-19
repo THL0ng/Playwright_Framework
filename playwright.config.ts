@@ -6,7 +6,6 @@ const envFile = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env.st
 dotenv.config({ path: path.resolve(__dirname, envFile) });
 
 export default defineConfig({
-  // Dùng đường dẫn chuẩn hóa
   globalSetup: path.resolve(__dirname, 'src/utils/global/global-setup.ts'),
   globalTeardown: path.resolve(__dirname, 'src/utils/global/global-teardown.ts'),
 
@@ -18,7 +17,12 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
-  
+    
+    // Xử lý Basic Auth
+    httpCredentials: {
+      username: process.env.BASIC_AUTH_USER!,
+      password: process.env.BASIC_AUTH_PASSWORD!,
+    },
   },
 
   projects: [
