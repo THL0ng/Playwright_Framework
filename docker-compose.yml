@@ -1,0 +1,18 @@
+services:
+  playwright:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: playwright-test-runner
+    # Gắn thư mục hiện tại vào container để bạn sửa code máy thật, container nhận ngay
+    volumes:
+      - .:/app
+      # Tránh việc node_modules trên máy thật ghi đè lên node_modules trong container
+      - /app/node_modules
+    # Cấu hình worker=1 như bạn đã yêu cầu
+    command: npx playwright test --workers=1
+    # Nếu test cần quyền truy cập hệ thống cao hơn
+    privileged: true 
+    # Truyền các biến môi trường nếu có (ví dụ URL, Login)
+    environment:
+      - BASE_URL=https://your-test-site.com
