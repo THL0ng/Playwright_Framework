@@ -1,5 +1,5 @@
 # 1. Sử dụng image chuẩn của Playwright (đã bao gồm trình duyệt và driver)
-FROM mcr.microsoft.com/playwright:v1.49.0-jammy
+FROM mcr.microsoft.com/playwright:v1.60.0-jammy
 
 # 2. Thiết lập thư mục làm việc bên trong container
 WORKDIR /app

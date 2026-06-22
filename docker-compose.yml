@@ -12,6 +12,7 @@ services:
     # Cấu hình worker=1 như bạn đã yêu cầu
     command: npx playwright test --workers=1
     ipc: host
-    # Truyền các biến môi trường nếu có (ví dụ URL, Login)
-    environment:
-      - BASE_URL=https://host.docker.internal:3000
+    env_file:
+    - .env.staging  
+    
+      
