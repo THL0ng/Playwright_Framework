@@ -11,8 +11,7 @@ services:
       - /app/node_modules
     # Cấu hình worker=1 như bạn đã yêu cầu
     command: npx playwright test --workers=1
-    # Nếu test cần quyền truy cập hệ thống cao hơn
-    privileged: true 
+    ipc: host
     # Truyền các biến môi trường nếu có (ví dụ URL, Login)
     environment:
-      - BASE_URL=https://your-test-site.com
+      - BASE_URL=https://host.docker.internal:3000
