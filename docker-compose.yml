@@ -4,15 +4,16 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: playwright-test-runner
-    # Gắn thư mục hiện tại vào container để bạn sửa code máy thật, container nhận ngay
-    volumes:
-      - .:/app
-      # Tránh việc node_modules trên máy thật ghi đè lên node_modules trong container
-      - /app/node_modules
-    # Cấu hình worker=1 như bạn đã yêu cầu
-    command: npx playwright test --workers=1
-    ipc: host
-    env_file:
-    - .env.staging  
     
-      
+    volumes:
+      # Đưa code từ máy vào container.
+      - .:/app
+      # Giữ node_modules của container, không bị host ghi đè
+      - /app/node_modules
+      # Show report/trace/video ra host để xem lại sau khi container chạy xong và xoá
+      - ./playwright-report:/app/playwright-report
+      - ./test-results:/app/test-results
+    ipc: host  # Bắt buộc — tránh Chromium crash do thiếu shared memory
+    env_file:
+      - .env.staging
+    command: npx playwright test --workers=1
