@@ -1,10 +1,9 @@
 services:
-  playwright:
+  playwright: # Tên service
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: playwright-test-runner
-    
+
     volumes:
       # Đưa code từ máy vào container.
       - .:/app
@@ -13,7 +12,6 @@ services:
       # Show report/trace/video ra host để xem lại sau khi container chạy xong và xoá
       - ./playwright-report:/app/playwright-report
       - ./test-results:/app/test-results
-    ipc: host  # Bắt buộc — tránh Chromium crash do thiếu shared memory
+    ipc: host # Bắt buộc — tránh Chromium crash do thiếu shared memory
     env_file:
       - .env.staging
-    command: npx playwright test --workers=1

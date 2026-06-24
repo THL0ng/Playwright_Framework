@@ -5,7 +5,7 @@
     "test": "playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
+    "@playwright/test": "1.60.0",
     "@types/node": "^25.9.3",
     "allure-playwright": "^3.0.0"
   },

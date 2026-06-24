@@ -1,5 +1,29 @@
+# Dependencies
 node_modules
+
+# Test artifacts
 test-results
 playwright-report
-.git
+blob-report
+allure-results
+allure-report
+playwright/.cache
+
+# Env / secrets
 .env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# Build output (nếu có bước build riêng)
+dist
+build
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+*.log
+npm-debug.log*
