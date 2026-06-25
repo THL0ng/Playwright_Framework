@@ -1,0 +1,23 @@
+# Override file — chỉ dùng khi app-under-test cần chạy NGAY trong job CI này
+# (thay vì là URL staging/external cố định, hoặc app trên host runner).
+#
+# Dùng kèm file base:
+#   TAG=<sha> APP_IMAGE=<app-image>:<tag> docker compose \
+#     -f docker-compose.ci.yml -f docker-compose.ci.app.yml up --abort-on-container-exit
+#
+# Compose tự tạo network chung giữa các service trong cùng lần chạy -> gọi nhau qua tên service.
+# Nhớ set BASE_URL=http://app:<port> qua env_file/environment ở file base cho phù hợp.
+
+services:
+  playwright:
+    depends_on:
+      app:
+        condition: service_healthy
+
+  app:
+    image: "${APP_IMAGE:?Loi - bien APP_IMAGE chua duoc set khi dung override file nay.}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

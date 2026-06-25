@@ -1,31 +1,56 @@
 # --- CẤU HÌNH ---
-# Tự động lấy 7 ký tự đầu của Git Hash làm tag
-TAG := $(shell git rev-parse --short HEAD)
-
-# Tên image của bạn
+# Dùng ?= để CI runner có thể truyền giá trị vào
+TAG ?= $(shell git rev-parse --short HEAD)
 IMAGE_NAME := playwright-tests
+WORKERS ?= 1
+ENV ?= ci
+# Cho phép tùy chỉnh tài nguyên từ biến môi trường của CI/Host
+CI_CPUS ?= 2
+CI_MEM ?= 4g
 
-# --- CÁC LỆNH ---
-.PHONY: build run clean
+.PHONY: build prepare-dirs run-dev run-ci run-ci-app shell logs down clean clean-all
 
-# Build image với 2 tag: tag theo hash và tag latest
+# 1. Build: Chỉ build khi cần, hỗ trợ fail-fast nếu thiếu biến
 build:
-	@echo "Đang build image với tag: $(TAG)"
-	docker build -t $(IMAGE_NAME):$(TAG) -t $(IMAGE_NAME):latest .
+	@echo "--- Đang build image: $(IMAGE_NAME):$(TAG) ---"
+	docker build -t $(IMAGE_NAME):$(TAG) .
+	@if [ -z "$$CI" ]; then docker tag $(IMAGE_NAME):$(TAG) $(IMAGE_NAME):latest; fi
 
-# Chạy test với tag khớp với hash hiện tại
-run:
-	@echo "Đang chạy test với tag: $(TAG)"
-	TAG=$(TAG) docker compose run --rm playwright
+# 2. Prepare: Đảm bảo quyền sở hữu folder
+prepare-dirs:
+	@mkdir -p playwright-report test-results
 
-# Xem cấu hình compose hiện tại (để debug)
-config:
-	TAG=$(TAG) docker compose config
+# 3. Dev: Chạy với bind-mount code
+run-dev: prepare-dirs
+	TAG=$(TAG) CI_CPUS=$(CI_CPUS) CI_MEM=$(CI_MEM) \
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm playwright \
+	npx playwright test --workers=$(WORKERS)
 
-# Dọn nhẹ nhàng (chỉ xóa image rác)
+# 4. CI: Chạy theo chuẩn Production (Không bind-mount, dùng image cố định)
+# Tự động inject biến vào các file compose đã cấu hình
+run-ci: prepare-dirs
+	TAG=$(TAG) CI_CPUS=$(CI_CPUS) CI_MEM=$(CI_MEM) ENV_FILE=.env.$(ENV) \
+	docker compose -f docker-compose.ci.yml run --rm playwright \
+	npx playwright test --workers=$(WORKERS)
+
+# 5. CI-App: Chạy tích hợp (App + Playwright)
+run-ci-app: prepare-dirs
+	TAG=$(TAG) CI_CPUS=$(CI_CPUS) CI_MEM=$(CI_MEM) ENV_FILE=.env.$(ENV) \
+	docker compose -f docker-compose.ci.yml -f docker-compose.ci.app.yml up --abort-on-container-exit
+
+# 6. Shell: Debug trực tiếp với môi trường giống dev
+shell:
+	TAG=$(TAG) docker compose -f docker-compose.dev.yml run --rm --entrypoint /bin/bash playwright
+
+# 7. Utilities
+logs:
+	docker compose logs -f
+
+down:
+	docker compose down
+
 clean:
 	docker image prune -f
 
-# Dọn sạch sành sanh (xóa cả volume rác, thường dùng khi muốn reset môi trường)
 clean-all:
 	docker system prune -f --volumes

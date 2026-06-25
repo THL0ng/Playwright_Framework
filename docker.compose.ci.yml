@@ -1,6 +1,0 @@
-services:
-  playwright:
-    volumes:
-      # KHÔNG mount code sống — test đúng image đã build, giống production
-      - ./playwright-report:/app/playwright-report
-      - ./test-results:/app/test-results

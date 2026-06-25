@@ -1,0 +1,50 @@
+services:
+  playwright:
+    # Image đã build & tag ở build-stage trước đó trong pipeline (KHÔNG build lại ở đây).
+    # Strict, không fallback: nếu build-stage quên export TAG, job FAIL NGAY với message rõ,
+    # thay vì âm thầm chạy "latest" -> false-positive nguy hiểm khi test nhầm image cũ.
+    image: "playwright-tests:${TAG:?Loi - bien TAG chua duoc set. Build-stage phai export TAG truoc khi chay test-stage.}"
+
+    # Không mount code sống (.:/app) — test đúng image production-like đã build,
+    # giống production, không phải code đang nằm trên runner.
+
+    # --- Resource limit, parametrize theo runner thật của từng pipeline ---
+    cpus: ${CI_CPUS:-2}
+    mem_limit: ${CI_MEM:-4g}
+
+    # --- Shared memory cho Chromium ---
+    # Thay cho `ipc: host`: tránh crash do /dev/shm mặc định 64MB, nhưng không share
+    # IPC namespace với host -> an toàn hơn, portable hơn (chạy được cả trên k8s runner).
+    shm_size: 2gb
+
+    volumes:
+      - ./playwright-report:/app/playwright-report
+      - ./test-results:/app/test-results # bắt buộc — giữ trace/video/screenshot khi fail
+
+    # --- Override lệnh chạy test khi cần (smoke test / full regression / 1 file riêng) ---
+    # Không cần rebuild image, chỉ cần set CI_COMMAND khác trong matrix job.
+    command: ${CI_COMMAND:-npx playwright test}
+
+    # --- BASE_URL & secrets: hỗ trợ CẢ HAI cách tuỳ job ---
+    # 1) env_file optional: dùng khi job có .env.ci check-in repo (không chứa secret thật).
+    #    required: false (Compose v2.24+) -> KHÔNG fail nếu job không dùng cách này.
+    env_file:
+      - path: ${ENV_FILE:-.env.ci}
+        required: false
+    # 2) environment: override trực tiếp từ secrets của pipeline (GitHub Actions/GitLab CI vars).
+    #    Nếu cả 2 cùng set giá trị, `environment` LUÔN THẮNG env_file.
+    environment:
+      BASE_URL: ${BASE_URL:-}
+
+    # --- Cho phép gọi tới app chạy trên HOST runner (case BASE_URL=http://host.docker.internal:<port>) ---
+    # Trên Linux, host.docker.internal KHÔNG tự có như Docker Desktop -> bắt buộc khai báo.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+# Cách dùng (case mặc định: BASE_URL là staging/external URL hoặc host runner):
+#   TAG=<sha-hoac-build-id> docker compose -f docker-compose.ci.yml run --rm playwright
+#
+# Case app-under-test là container khác cùng spin trong job CI:
+#   -> dùng kèm file override docker-compose.ci.app.yml (xem file đó):
+#   TAG=<sha> APP_IMAGE=<app-image> docker compose \
+#     -f docker-compose.ci.yml -f docker-compose.ci.app.yml up --abort-on-container-exit

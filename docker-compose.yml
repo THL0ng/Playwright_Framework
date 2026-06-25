@@ -1,19 +1,68 @@
 services:
-  playwright: # Tên service
+  playwright:
     image: playwright-tests:${TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
-    cpus: 2
-    mem_limit: 8g
+
+    # --- Resource limit ---
+    # Parametrize để khớp với spec runner CI thật (free runner GitHub ~7GB RAM, 2 core).
+    # Set qua biến môi trường CI_CPUS / CI_MEM nếu runner khác nhau giữa các job.
+    cpus: ${CI_CPUS:-2}
+    mem_limit: ${CI_MEM:-4g}
+
+    # --- Shared memory cho Chromium ---
+    # Dùng shm_size thay cho `ipc: host` để tránh Chromium crash do /dev/shm mặc định
+    # chỉ 64MB, nhưng KHÔNG share IPC namespace với host (an toàn hơn, đúng nguyên tắc
+    # least privilege, không bị flag bởi CIS Docker Benchmark / security scan).
+    # Cũng portable hơn: chạy được trên cả Docker Compose, Swarm, Kubernetes,
+    # khác với `ipc: host` thường bị chặn bởi policy trên self-hosted runner k8s.
+    shm_size: 2gb
+
     volumes:
-      # Đưa code từ máy vào container.
       - .:/app
-      # Giữ node_modules của container, không bị host ghi đè
-      - /app/node_modules
-      # Show report/trace/video ra host để xem lại sau khi container chạy xong và xoá
+      - /app/node_modules # tránh ghi đè node_modules từ host
       - ./playwright-report:/app/playwright-report
-      - ./test-results:/app/test-results
-    ipc: host # Bắt buộc — tránh Chromium crash do thiếu shared memory
+      - ./test-results:/app/test-results # BẮT BUỘC: chứa trace/video/screenshot khi test fail
+
+    # --- Override lệnh chạy test ---
+    # Để trống mặc định (dùng CMD trong Dockerfile). Có thể override khi cần:
+    # - Qua biến CI_COMMAND trong matrix job (smoke test / full regression / 1 file riêng)
+    # - Hoặc trực tiếp khi debug local:
+    #   docker compose run playwright npx playwright test path/to/file.spec.ts
+    command: ${CI_COMMAND:-npx playwright test}
+
+    # --- Env file linh hoạt theo job/matrix CI ---
+    # Set ENV_FILE qua biến môi trường CI (vd: .env.staging, .env.prod, .env.local)
+    # khi BASE_URL thay đổi tuỳ lúc.
     env_file:
-      - .env.staging
+      - ${ENV_FILE:-.env.staging}
+
+    # --- Cho phép container gọi tới app chạy trên HOST runner/máy dev ---
+    # Trên Linux (CI runner), host.docker.internal KHÔNG tự có như Docker Desktop
+    # -> bắt buộc khai báo dòng này nếu BASE_URL=http://host.docker.internal:<port>
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # --- Trường hợp app-under-test là 1 container khác TRONG CÙNG file compose này ---
+    # Compose tự tạo network chung cho mọi service trong file này, chỉ cần gọi bằng tên service.
+    # Khi có service app thật, mở comment và sửa lại:
+    # depends_on:
+    #   app:
+    #     condition: service_healthy
+    # rồi set ENV_FILE tương ứng -> BASE_URL=http://app:<port>
+
+  # --- Template app-under-test khi cần test app chạy ngay trong compose này ---
+  # app:
+  #   image: my-app:latest
+  #   ports:
+  #     - "3000:3000"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 10
+
+  # --- Trường hợp app-under-test là URL staging/production bên ngoài ---
+  # Không cần cấu hình gì thêm ở đây, chỉ cần set trong .env tương ứng:
+  # BASE_URL=https://staging.example.com
