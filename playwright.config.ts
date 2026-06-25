@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 
 const envFile = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env.staging';
-dotenv.config({ path: path.resolve(__dirname, envFile) });
+dotenv.config({ path: path.resolve(__dirname, 'envs', envFile) });
 
 export default defineConfig({
   globalSetup: path.resolve(__dirname, 'src/utils/global/global-setup.ts'),

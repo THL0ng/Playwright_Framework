@@ -17,7 +17,7 @@ playwright/.cache
 .git
 .gitignore
 
-# Build output (nếu có bước build riêng)
+# Build output
 dist
 build
 
@@ -27,3 +27,6 @@ build
 .DS_Store
 *.log
 npm-debug.log*
+
+# Nếu bạn muốn Docker không copy các file Docker cấu hình vào trong chính Image của nó (tùy chọn)
+docker/

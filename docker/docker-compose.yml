@@ -2,7 +2,7 @@ services:
   playwright:
     image: playwright-tests:${TAG:-latest}
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
 
     # --- Resource limit ---
@@ -20,10 +20,10 @@ services:
     shm_size: 2gb
 
     volumes:
-      - .:/app
+      - ..:/app
       - /app/node_modules # tránh ghi đè node_modules từ host
-      - ./playwright-report:/app/playwright-report
-      - ./test-results:/app/test-results # BẮT BUỘC: chứa trace/video/screenshot khi test fail
+      - ../playwright-report:/app/playwright-report
+      - ../test-results:/app/test-results # BẮT BUỘC: chứa trace/video/screenshot khi test fail
 
     # --- Override lệnh chạy test ---
     # Để trống mặc định (dùng CMD trong Dockerfile). Có thể override khi cần:
@@ -36,7 +36,7 @@ services:
     # Set ENV_FILE qua biến môi trường CI (vd: .env.staging, .env.prod, .env.local)
     # khi BASE_URL thay đổi tuỳ lúc.
     env_file:
-      - ${ENV_FILE:-.env.staging}
+      - ../envs/.env.${ENV_FILE:-staging}
 
     # --- Cho phép container gọi tới app chạy trên HOST runner/máy dev ---
     # Trên Linux (CI runner), host.docker.internal KHÔNG tự có như Docker Desktop

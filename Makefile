@@ -8,12 +8,15 @@ ENV ?= ci
 CI_CPUS ?= 2
 CI_MEM ?= 4g
 
+# Đường dẫn folder chứa file cấu hình Docker
+DOCKER_DIR := docker
+
 .PHONY: build prepare-dirs run-dev run-ci run-ci-app shell logs down clean clean-all
 
 # 1. Build: Chỉ build khi cần, hỗ trợ fail-fast nếu thiếu biến
 build:
 	@echo "--- Đang build image: $(IMAGE_NAME):$(TAG) ---"
-	docker build -t $(IMAGE_NAME):$(TAG) .
+	docker build -f $(DOCKER_DIR)/Dockerfile -t $(IMAGE_NAME):$(TAG) .
 	@if [ -z "$$CI" ]; then docker tag $(IMAGE_NAME):$(TAG) $(IMAGE_NAME):latest; fi
 
 # 2. Prepare: Đảm bảo quyền sở hữu folder
@@ -23,31 +26,31 @@ prepare-dirs:
 # 3. Dev: Chạy với bind-mount code
 run-dev: prepare-dirs
 	TAG=$(TAG) CI_CPUS=$(CI_CPUS) CI_MEM=$(CI_MEM) \
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm playwright \
+	docker compose -f $(DOCKER_DIR)/docker-compose.yml -f $(DOCKER_DIR)/docker-compose.dev.yml run --rm playwright \
 	npx playwright test --workers=$(WORKERS)
 
 # 4. CI: Chạy theo chuẩn Production (Không bind-mount, dùng image cố định)
 # Tự động inject biến vào các file compose đã cấu hình
 run-ci: prepare-dirs
 	TAG=$(TAG) CI_CPUS=$(CI_CPUS) CI_MEM=$(CI_MEM) ENV_FILE=.env.$(ENV) \
-	docker compose -f docker-compose.ci.yml run --rm playwright \
+	docker compose -f $(DOCKER_DIR)/docker-compose.ci.yml run --rm playwright \
 	npx playwright test --workers=$(WORKERS)
 
 # 5. CI-App: Chạy tích hợp (App + Playwright)
 run-ci-app: prepare-dirs
 	TAG=$(TAG) CI_CPUS=$(CI_CPUS) CI_MEM=$(CI_MEM) ENV_FILE=.env.$(ENV) \
-	docker compose -f docker-compose.ci.yml -f docker-compose.ci.app.yml up --abort-on-container-exit
+	docker compose -f $(DOCKER_DIR)/docker-compose.ci.yml -f $(DOCKER_DIR)/docker-compose.ci.app.yml up --abort-on-container-exit
 
 # 6. Shell: Debug trực tiếp với môi trường giống dev
 shell:
-	TAG=$(TAG) docker compose -f docker-compose.dev.yml run --rm --entrypoint /bin/bash playwright
+	TAG=$(TAG) docker compose -f $(DOCKER_DIR)/docker-compose.dev.yml run --rm --entrypoint /bin/bash playwright
 
 # 7. Utilities
 logs:
-	docker compose logs -f
+	docker compose -f $(DOCKER_DIR)/docker-compose.yml logs -f
 
 down:
-	docker compose down
+	docker compose -f $(DOCKER_DIR)/docker-compose.yml down
 
 clean:
 	docker image prune -f
