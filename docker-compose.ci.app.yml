@@ -13,11 +13,12 @@ services:
     depends_on:
       app:
         condition: service_healthy
+  
 
   app:
-    image: "${APP_IMAGE:?Loi - bien APP_IMAGE chua duoc set khi dung override file nay.}"
+    image: "${APP_IMAGE:?Loi - bien APP_IMAGE chua duoc set}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
       interval: 5s
       timeout: 3s
       retries: 10

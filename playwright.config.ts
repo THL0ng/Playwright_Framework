@@ -13,23 +13,29 @@ export default defineConfig({
   workers: 1, 
   
   use: {
-    baseURL: process.env.BASE_URL,
+    // Gộp lại thành 1 dòng duy nhất, không trùng lặp
+    baseURL: process.env.BASE_URL || 'http://localhost:80',
+    
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
     
-    // Xử lý Basic Auth
+    // Xử lý Basic Auth an toàn hơn
     httpCredentials: {
-      username: process.env.BASIC_AUTH_USER!,
-      password: process.env.BASIC_AUTH_PASSWORD!,
+      username: process.env.BASIC_AUTH_USER || '',
+      password: process.env.BASIC_AUTH_PASSWORD || '',
     },
   },
-
+  
   projects: [
     { name: 'setup', testMatch: /.*\.setup\.ts/ },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+          ...devices['Desktop Chrome'],
+          // Đảm bảo baseURL cũng được kế thừa ở đây nếu cần thiết
+          baseURL: process.env.BASE_URL || 'http://localhost:80',
+      },
       dependencies: ['setup'],
     },
   ],

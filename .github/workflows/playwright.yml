@@ -2,24 +2,32 @@ name: Playwright Tests
 on:
   push:
     branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 20
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
+
+    # Bước 1: Build image (Sử dụng Makefile)
+    - name: Build Docker Image
+      run: make build TAG=${{ github.sha }}
+
+    # Bước 2: Chạy test thông qua Makefile
+    # Nếu test nhắm vào URL thực:
     - name: Run Playwright tests
-      run: npx playwright test
+      run: make run-ci TAG=${{ github.sha }} ENV=ci
       env:
-        CI: true
-        BASE_URL: ${{ secrets.BASE_URL }} # Bạn cần setup biến này trong repo Settings > Secrets
+        BASE_URL: ${{ secrets.BASE_URL }} # Lấy từ GitHub Secrets
+
+    # Hoặc nếu chạy tích hợp với App (nếu bạn có dùng docker-compose.ci.app.yml)
+    # - name: Run Integration Tests
+    #   run: make run-ci-app TAG=${{ github.sha }} APP_IMAGE=my-app-image:latest ENV=ci
+
+    # Bước 3: Upload report
     - uses: actions/upload-artifact@v4
       if: always()
       with:
