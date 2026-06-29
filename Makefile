@@ -52,8 +52,14 @@ logs:
 down:
 	docker compose -f $(DOCKER_DIR)/docker-compose.yml down
 
+.PHONY: clean clean-all
+
 clean:
+	@echo "Dọn dẹp các dangling images..."
 	docker image prune -f
+	@echo "Xong."
 
 clean-all:
+	@echo "CẢNH BÁO: Đang xóa sạch tất cả container, volume và image không dùng đến!"
 	docker system prune -f --volumes
+	@echo "Môi trường đã được làm sạch hoàn toàn."
