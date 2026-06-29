@@ -22,6 +22,8 @@ test.describe('Data Loader Verification', () => {
   // });
 
   test('Mở trang chủ', async ({ page }) => {
+    console.log('BASE_URL hiện tại:', process.env.BASE_URL);
+
     await page.goto(process.env.BASE_URL || '');
     await expect(page).toHaveTitle(/.*/);
   });

@@ -13,9 +13,9 @@
     "report:show": "playwright show-report",
     "allure:generate": "allure generate allure-results -o allure-report --clean",
     "allure:open": "allure open allure-report",
-    "test:staging": "cross-env NODE_ENV=staging BASE_URL=https://staging.app.com playwright test",
-    "test:prod": "cross-env NODE_ENV=prod BASE_URL=https://prod.app.com playwright test",
-    "test:local": "NODE_ENV=local BASE_URL=http://localhost:8080 playwright test"
+    "test:staging": "cross-env NODE_ENV=staging playwright test",
+    "test:prod": "cross-env NODE_ENV=prod  playwright test",
+    "test:local": "cross-env NODE_ENV=local playwright test"
   },
   "devDependencies": {
     "@playwright/test": "1.60.0",
