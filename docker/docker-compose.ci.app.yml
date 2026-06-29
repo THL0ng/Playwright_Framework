@@ -1,31 +1,27 @@
-# ============================================================
-# OVERRIDE FILE — APP-UNDER-TEST CHẠY NGAY TRONG JOB CI NÀY
-# ============================================================
-# Chỉ dùng file này khi app cần spin lên cùng lúc với test (KHÔNG dùng cho case
-# app-under-test là URL staging/external cố định, hoặc app chạy sẵn trên host runner).
-#
-# CÁCH CHẠY:
+# FILE NÀY DÙNG KHI: cần test 1 app chạy luôn trong job CI này
+# (không dùng khi app đã chạy sẵn ở staging, hoặc app chạy trên máy host).
+
+# CHẠY BẰNG LỆNH:
 #   TAG=<sha> APP_IMAGE=<app-image>:<tag> docker compose \
 #     -f docker-compose.ci.yml -f docker-compose.ci.app.yml up --abort-on-container-exit
-#
-# GHI NHỚ:
-#   - Compose tự tạo network chung cho mọi service trong lần chạy này -> gọi nhau qua tên service.
-#   - Phải set BASE_URL=http://app:<port> (qua env_file/environment ở file base) thì playwright
-#     mới gọi đúng vào service app này.
+
+# LƯU Ý:
+#   - playwright gọi sang app bằng tên service "app", không cần IP hay localhost.
+#   - Phải tự set BASE_URL=http://app:<port> ở file base, nếu không playwright
+#     sẽ không biết test vào đâu.
 
 services:
   playwright:
-    # CHỜ APP SẴN SÀNG: chỉ chạy test sau khi app healthcheck PASS, tránh test fail oan
-    # do app chưa kịp khởi động.
+    # Chờ app healthcheck PASS rồi mới chạy test, tránh fail oan do app chưa kịp khởi động.
     depends_on:
       app:
         condition: service_healthy
 
   app:
-    # IMAGE APP: bắt buộc set qua APP_IMAGE, không có default -> tránh chạy nhầm image rác.
+    # Bắt buộc set APP_IMAGE, không có default -> tránh test nhầm image rác.
     image: "${APP_IMAGE:?Loi - bien APP_IMAGE chua duoc set}"
 
-    # HEALTHCHECK: dùng để playwright biết khi nào app đã sẵn sàng nhận request (xem depends_on trên).
+    # Dùng để playwright biết khi nào app đã sẵn sàng (xem depends_on phía trên).
     healthcheck:
       test: [ "CMD", "wget", "-q", "--spider", "http://localhost:80" ]
       interval: 5s

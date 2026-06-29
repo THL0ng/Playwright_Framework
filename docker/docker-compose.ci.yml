@@ -24,13 +24,15 @@ services:
     # mà không cần build lại image.
     command: ${CI_COMMAND:-npx playwright test}
 
-    # NGUỒN CẤU HÌNH BASE_URL & SECRETS — hỗ trợ 2 cách, dùng cách nào cũng được:
-    # (1) File .env check-in repo, không chứa secret thật.
+    # BASE_URL lấy từ 1 trong 2 nguồn dưới, dùng nguồn nào cũng được:
+    # Nguồn 1: chỉ định 1 file env có sẵn trong project qua biến ENV_FILE
+    # (vd: ENV_FILE=envs/.env.staging hoặc envs/.env.prod), không set thì dùng mặc định .env.ci
     env_file:
       - path: ${ENV_FILE:-.env.ci}
-        required: false   # optional -> job không dùng file này thì không fail
-    # (2) Secret/biến set trực tiếp từ pipeline (GitHub Actions/GitLab CI vars).
-    #     Nếu trùng key với env_file, giá trị ở đây LUÔN THẮNG.
+        required: false   # không có file này cũng không sao, không bị fail
+
+    # Nguồn 2: lấy trực tiếp từ biến set sẵn trong CI/CD (GitHub Actions Secrets/Variables)
+    # Nếu 2 nguồn cùng có giá trị -> nguồn này (environment) THẮNG
     environment:
       BASE_URL: ${BASE_URL:-}
 
