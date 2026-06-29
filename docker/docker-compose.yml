@@ -1,5 +1,6 @@
 services:
   playwright:
+    # Gắn Tag cho image, ko gắn tag thì default là latest
     image: playwright-tests:${TAG:-latest}
     build:
       context: ..
@@ -26,43 +27,48 @@ services:
       - ../test-results:/app/test-results # BẮT BUỘC: chứa trace/video/screenshot khi test fail
 
     # --- Override lệnh chạy test ---
-    # Để trống mặc định (dùng CMD trong Dockerfile). Có thể override khi cần:
-    # - Qua biến CI_COMMAND trong matrix job (smoke test / full regression / 1 file riêng)
-    # - Hoặc trực tiếp khi debug local:
-    #   docker compose run playwright npx playwright test path/to/file.spec.ts
+    # Mặc định chạy toàn bộ test.
+    # Override khi cần chạy riêng file hoặc thêm option (ví dụ: --headed, --project). 
+    # Ví dụ : CI_COMMAND="npx playwright test --headed --project=firefox" docker compose up
+    # CI_COMMAND="npx playwright test tests/e2e/test-exemple.spec.ts" docker compose up
     command: ${CI_COMMAND:-npx playwright test}
 
-    # --- Env file linh hoạt theo job/matrix CI ---
-    # Set ENV_FILE qua biến môi trường CI (vd: .env.staging, .env.prod, .env.local)
-    # khi BASE_URL thay đổi tuỳ lúc.
+
+    # --- Chọn cấu hình envs ---
     env_file:
       - ../envs/.env.${ENV_FILE:-staging}
 
-    # --- Cho phép container gọi tới app chạy trên HOST runner/máy dev ---
-    # Trên Linux (CI runner), host.docker.internal KHÔNG tự có như Docker Desktop
-    # -> bắt buộc khai báo dòng này nếu BASE_URL=http://host.docker.internal:<port>
+    # --- Cầu nối mạng tới máy chủ (Host) ---
+    # Giúp container truy cập được ứng dụng đang chạy trên máy của bạn
+    # (Bắt buộc phải có khi chạy trên Linux/CI để container tìm thấy host)
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    
+    
 
-    # --- Trường hợp app-under-test là 1 container khác TRONG CÙNG file compose này ---
-    # Compose tự tạo network chung cho mọi service trong file này, chỉ cần gọi bằng tên service.
-    # Khi có service app thật, mở comment và sửa lại:
-    # depends_on:
-    #   app:
-    #     condition: service_healthy
-    # rồi set ENV_FILE tương ứng -> BASE_URL=http://app:<port>
+    # ============================================================
+# CẤU HÌNH APP-UNDER-TEST (chọn 1 trong 3 cách dưới)
+# ============================================================
 
-  # --- Template app-under-test khi cần test app chạy ngay trong compose này ---
-  # app:
-  #   image: my-app:latest
-  #   ports:
-  #     - "3000:3000"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-  #     interval: 5s
-  #     timeout: 3s
-  #     retries: 10
+# [Cách 1] App là service khác trong CÙNG file compose này
+#   - Compose tự tạo network chung, gọi nhau bằng tên service.
+#   - Bật depends_on dưới đây + set BASE_URL=http://app:<port> trong .env
 
-  # --- Trường hợp app-under-test là URL staging/production bên ngoài ---
-  # Không cần cấu hình gì thêm ở đây, chỉ cần set trong .env tương ứng:
-  # BASE_URL=https://staging.example.com
+# depends_on:
+#   app:
+#     condition: service_healthy
+
+# [Cách 2] Định nghĩa luôn service app ngay trong compose này
+# app:
+#   image: my-app:latest
+#   ports:
+#     - "3000:3000"
+#   healthcheck:
+#     test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+#     interval: 5s
+#     timeout: 3s
+#     retries: 10
+
+# [Cách 3] App đã chạy sẵn ở staging/production (ngoài compose này)
+#   - Không cần sửa gì ở đây, chỉ set trong .env:
+#     BASE_URL=https://staging.example.com

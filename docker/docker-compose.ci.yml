@@ -1,50 +1,52 @@
 services:
   playwright:
-    # Image đã build & tag ở build-stage trước đó trong pipeline (KHÔNG build lại ở đây).
-    # Strict, không fallback: nếu build-stage quên export TAG, job FAIL NGAY với message rõ,
-    # thay vì âm thầm chạy "latest" -> false-positive nguy hiểm khi test nhầm image cũ.
+    # IMAGE TEST: dùng image đã build sẵn ở build-stage, KHÔNG build lại ở đây.
+    # Bắt buộc có TAG, không fallback "latest" -> job FAIL ngay nếu build-stage quên export TAG
+    # (tránh test nhầm image cũ -> false-positive nguy hiểm).
     image: "playwright-tests:${TAG:?Loi - bien TAG chua duoc set. Build-stage phai export TAG truoc khi chay test-stage.}"
 
-    # Không mount code sống (.:/app) — test đúng image production-like đã build,
-    # giống production, không phải code đang nằm trên runner.
+    # KHÔNG mount code sống (./:/app) -> test đúng image production-like, không phải code trên runner.
 
-    # --- Resource limit, parametrize theo runner thật của từng pipeline ---
+    # GIỚI HẠN TÀI NGUYÊN: chỉnh theo runner thật của từng pipeline qua biến CI_CPUS/CI_MEM.
     cpus: ${CI_CPUS:-2}
     mem_limit: ${CI_MEM:-4g}
 
-    # --- Shared memory cho Chromium ---
-    # Thay cho `ipc: host`: tránh crash do /dev/shm mặc định 64MB, nhưng không share
-    # IPC namespace với host -> an toàn hơn, portable hơn (chạy được cả trên k8s runner).
+    # BỘ NHỚ DÙNG CHUNG CHO CHROMIUM: tránh crash do /dev/shm mặc định chỉ 64MB.
+    # Dùng shm_size thay vì `ipc: host` -> không share IPC với host, an toàn & chạy được trên k8s runner.
     shm_size: 2gb
 
+    # OUTPUT TEST: lưu report + trace/video/screenshot ra ngoài container để xem khi fail.
     volumes:
       - ./playwright-report:/app/playwright-report
-      - ./test-results:/app/test-results # bắt buộc — giữ trace/video/screenshot khi fail
+      - ./test-results:/app/test-results # bắt buộc — không có thì mất bằng chứng khi fail
 
-    # --- Override lệnh chạy test khi cần (smoke test / full regression / 1 file riêng) ---
-    # Không cần rebuild image, chỉ cần set CI_COMMAND khác trong matrix job.
+    # LỆNH CHẠY TEST: đổi được qua CI_COMMAND (vd: smoke test / full regression / 1 file)
+    # mà không cần build lại image.
     command: ${CI_COMMAND:-npx playwright test}
 
-    # --- BASE_URL & secrets: hỗ trợ CẢ HAI cách tuỳ job ---
-    # 1) env_file optional: dùng khi job có .env.ci check-in repo (không chứa secret thật).
-    #    required: false (Compose v2.24+) -> KHÔNG fail nếu job không dùng cách này.
+    # NGUỒN CẤU HÌNH BASE_URL & SECRETS — hỗ trợ 2 cách, dùng cách nào cũng được:
+    # (1) File .env check-in repo, không chứa secret thật.
     env_file:
       - path: ${ENV_FILE:-.env.ci}
-        required: false
-    # 2) environment: override trực tiếp từ secrets của pipeline (GitHub Actions/GitLab CI vars).
-    #    Nếu cả 2 cùng set giá trị, `environment` LUÔN THẮNG env_file.
+        required: false   # optional -> job không dùng file này thì không fail
+    # (2) Secret/biến set trực tiếp từ pipeline (GitHub Actions/GitLab CI vars).
+    #     Nếu trùng key với env_file, giá trị ở đây LUÔN THẮNG.
     environment:
       BASE_URL: ${BASE_URL:-}
 
-    # --- Cho phép gọi tới app chạy trên HOST runner (case BASE_URL=http://host.docker.internal:<port>) ---
-    # Trên Linux, host.docker.internal KHÔNG tự có như Docker Desktop -> bắt buộc khai báo.
+    # CHO PHÉP GỌI RA APP CHẠY TRÊN HOST RUNNER (khi BASE_URL=http://host.docker.internal:<port>).
+    # Trên Linux, host.docker.internal không tự có sẵn như Docker Desktop -> phải khai báo dòng này.
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-# Cách dùng (case mặc định: BASE_URL là staging/external URL hoặc host runner):
+# ============================================================
+# CÁCH CHẠY
+# ============================================================
+
+# Case 1 — app-under-test là URL bên ngoài (staging) hoặc app chạy trên host runner:
 #   TAG=<sha-hoac-build-id> docker compose -f docker-compose.ci.yml run --rm playwright
-#
-# Case app-under-test là container khác cùng spin trong job CI:
-#   -> dùng kèm file override docker-compose.ci.app.yml (xem file đó):
+
+# Case 2 — app-under-test là 1 container khác cũng spin lên trong job CI này:
+#   dùng kèm file override docker-compose.ci.app.yml:
 #   TAG=<sha> APP_IMAGE=<app-image> docker compose \
 #     -f docker-compose.ci.yml -f docker-compose.ci.app.yml up --abort-on-container-exit
