@@ -2,63 +2,45 @@ import { defineConfig, devices } from '@playwright/test';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
-/**
- * 1. LOGIC LOAD BIẾN MÔI TRƯỜNG
- * Chúng ta ưu tiên biến môi trường có sẵn. 
- * Nếu có NODE_ENV, load file .env tương ứng.
- */
-const nodeEnv = process.env.NODE_ENV;
-if (nodeEnv) {
-  dotenv.config({ path: path.resolve(__dirname, 'envs', `.env.${nodeEnv}`) });
-} else {
-  // Load file .env mặc định ở thư mục gốc (nếu có)
-  dotenv.config();
-}
+// 1. Load biến môi trường
+const nodeEnv = process.env.NODE_ENV || 'staging'; // Mặc định là staging nếu không set
+dotenv.config({ path: path.resolve(__dirname, 'src', '.envs', `.env.${nodeEnv}`) });
 
-/**
- * 2. KIỂM TRA BẮT BUỘC (Fail-fast)
- * Không cho phép chạy nếu thiếu BASE_URL.
- */
 if (!process.env.BASE_URL) {
-  throw new Error(
-    "LỖI: Biến môi trường 'BASE_URL' chưa được thiết lập. " +
-    "Hãy chạy bằng lệnh npm (ví dụ: npm run test:staging) hoặc kiểm tra lại file .env!"
-  );
+  throw new Error("LỖI: Biến môi trường 'BASE_URL' chưa được thiết lập.");
 }
 
 export default defineConfig({
-  globalSetup: path.resolve(__dirname, 'src/utils/global/global-setup.ts'),
-  globalTeardown: path.resolve(__dirname, 'src/utils/global/global-teardown.ts'),
-
   testDir: './tests',
-  workers: process.env.CI ? 1 : 1, 
-  
+  workers: process.env.CI ? 1 : 1,
+
   use: {
-    // Lấy giá trị trực tiếp từ biến môi trường
     baseURL: process.env.BASE_URL,
-    
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
-    
-    // Tự động thêm httpCredentials chỉ khi cả 2 biến đều tồn tại
-    ...(process.env.BASIC_AUTH_USER && process.env.BASIC_AUTH_PASSWORD ? {
-      httpCredentials: {
-        username: process.env.BASIC_AUTH_USER,
-        password: process.env.BASIC_AUTH_PASSWORD,
-      }
-    } : {})
   },
-  
+
   projects: [
-    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+    // Project Setup: Chạy độc lập để lấy storageState
+    { 
+      name: 'setup', 
+      testMatch: /auth\.setup\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: false, // Để bạn nhìn thấy quá trình login khi debug
+      }
+    },
+
+    // Project Test: Phụ thuộc vào setup
     {
       name: 'chromium',
-      use: { 
-          ...devices['Desktop Chrome']
-          // Không cần khai báo lại baseURL ở đây, nó đã lấy từ use bên trên
+      use: {
+        ...devices['Desktop Chrome'],
+        // Nạp file storageState đã tạo từ project 'setup'
+        storageState: '.auth/storage.json',
       },
-      dependencies: ['setup'],
+      dependencies: ['setup'], // Kích hoạt setup trước khi test chạy
     },
   ],
 });
